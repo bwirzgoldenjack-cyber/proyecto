@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="es">
+ 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sucursales | GoldenJack</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sucursales.css') }}">
+</head>
+ 
+<body>
+ 
+<!-- SIDEBAR -->
+<aside class="sidebar">
+    <img class="sidebar-logo" src="{{ url_for('static', filename='img/logo.png') }}">
+    <div class="menu">
+        <a href="{{ url_for('panel') }}">Dashboard</a>
+        <a class="active" href="{{ url_for('sucursales') }}">Sucursales</a>
+        <a href="{{ url_for('puertas') }}">Puertas</a>
+        <a href="{{ url_for('historial') }}">Historial</a>
+        <a href="{{ url_for('configuracion') }}">Configuracion</a>
+    </div>
+</aside>
+ 
+<!-- MAIN -->
+<main class="dashboard">
+ 
+    <!-- TOPBAR -->
+    <div class="topbar">
+        <div>
+            <h1>Sucursales</h1>
+            <p class="subtitulo">Gestion de ubicaciones operativas</p>
+        </div>
+        <div class="top-right">
+            <div class="fecha">
+                <span id="fecha">--</span>
+                <h2 id="hora">--:--:--</h2>
+            </div>
+            <button class="logout">CERRAR SESION</button>
+        </div>
+    </div>
+ 
+    <!-- ACCIONES -->
+    <div class="acciones">
+        <input type="text" id="buscarSucursal" placeholder="Buscar sucursal...">
+        <input type="text" id="nuevaSucursal" placeholder="Nueva sucursal">
+        <button class="btn-agregar" onclick="agregarSucursal()">+ Crear</button>
+    </div>
+ 
+    <div class="sucursales-grid" id="sucursalesGrid">
+        <p style="color: var(--color-text-secondary); font-size: 14px;">
+            Cargando sucursales...
+        </p>
+    </div>
+ 
+</main>
+ 
+<!-- utils.js PRIMERO, luego sucursales.js -->
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sucursales.js') }}"></script>
+ 
+</body>
+</html>
