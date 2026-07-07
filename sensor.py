@@ -1,4 +1,3 @@
-
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -26,8 +25,8 @@ from datetime import datetime
 
 SERVIDOR = "http://localhost:5002"   # URL del servidor Flask
 
-PIN_EXTERIOR = 17   # GPIO17 - sensor del lado de afuera
-PIN_INTERIOR = 27   # GPIO27 - sensor del lado de adentro
+PIN_EXTERIOR = 20   # GPIO20 - sensor del lado de afuera
+PIN_INTERIOR = 21   # GPIO21 - sensor del lado de adentro
 
 # ==========================
 # PUERTA ACTIVA
