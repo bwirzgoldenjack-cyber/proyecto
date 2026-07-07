@@ -21,11 +21,33 @@ from contextlib import contextmanager
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "CAMBIAR_ESTO_EN_PRODUCCION")
+
+# Antes: app.secret_key = os.environ.get("SECRET_KEY", "CAMBIAR_ESTO_EN_PRODUCCION")
+# Ese fallback es un secreto hardcodeado y público (está en el código
+# fuente). Si el .env no cargaba bien en producción por el motivo que
+# sea, la app arrancaba igual con esa clave conocida por cualquiera
+# que vea el repo, lo que permite falsificar cookies de sesión. Ahora
+# directamente no arranca sin SECRET_KEY seteada.
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "Falta SECRET_KEY en el .env. Generá una con: "
+        "python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
+app.secret_key = SECRET_KEY
+
 SENSOR_KEY = os.environ.get("SENSOR_KEY")
+
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+
+# La cookie de sesión solo debe viajar por HTTPS en producción. Se
+# deja apagable por env var para poder probar en local sin TLS
+# (ej. desarrollo en http://localhost). En producción, COOKIE_SECURE
+# debe estar en "1" (o simplemente no seteada, ya que ese es el
+# default).
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "1") != "0"
 
 # NOTA: se eliminó el reset diario por cron (APScheduler) de estado_puertas.
 # Ya no hace falta: tanto el Dashboard (/conn_puertas) como Sucursales
@@ -173,6 +195,26 @@ def check_rate_limit(ip):
     return len(login_attempts[ip]) < 5
 
 
+# Antes: ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+# Ese header lo manda el cliente, así que si Flask no está corriendo
+# detrás de un reverse proxy que lo sobreescriba (nginx, etc), cualquiera
+# puede mandar un X-Forwarded-For distinto en cada request y esquivar
+# el rate limit de intentos de login por completo.
+#
+# TRUST_PROXY=1 en el .env indica que SÍ hay un proxy de confianza
+# adelante (y que ese proxy es el único que puede escribir el header).
+# Sin esa variable, se usa directamente la IP de la conexión TCP.
+TRUST_PROXY = os.environ.get("TRUST_PROXY", "0") == "1"
+
+def get_client_ip():
+    if TRUST_PROXY:
+        xff = request.headers.get("X-Forwarded-For")
+        if xff:
+            # La IP del cliente real es la primera de la lista.
+            return xff.split(",")[0].strip()
+    return request.remote_addr
+
+
 # =====================================================
 # AUTH
 # =====================================================
@@ -191,7 +233,7 @@ def inicio():
 @app.route("/acceso-seguro-9x", methods=["GET", "POST"])
 def login():
     error = ""
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    ip = get_client_ip()
 
     if request.method == "POST":
 

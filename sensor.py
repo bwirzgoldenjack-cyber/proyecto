@@ -11,7 +11,6 @@ try:
     GPIO_REAL = True
 except Exception:
     GPIO_REAL = False
-    print("⚠️ Modo simulación activado (sin GPIO reales)")
 import requests
 import time
 import json
