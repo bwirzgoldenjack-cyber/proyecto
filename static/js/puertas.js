@@ -43,7 +43,7 @@ function renderPuertas() {
                         <span>${esc(sucursal)}</span>
                     </div>
                     <div class="estado ${activa ? "online" : "offline"}">
-                        ● ${activa ? "ACTIVA" : "ACTIVA"}
+                        ● ${activa ? "ACTIVA" : "INACTIVA"}
                     </div>
                 </div>
                 <div class="stats">
