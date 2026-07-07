@@ -41,7 +41,7 @@ function evento(tipo) {
         const p = data.puertas.find(p => p.nombre === puerta);
         if (!p) return;
 
-        fetch("/movimiento", {
+        fetch("/simular_evento", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -53,6 +53,7 @@ function evento(tipo) {
         .then(r => r.json())
         .then(data => {
             if (data.ok) setTimeout(actualizar, 500);
+            else console.error("Error al simular evento:", data.error);
         });
     });
 }
