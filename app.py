@@ -81,10 +81,16 @@ def agregar_puerta():
         if not s:
             return jsonify({"error": "Sucursal no existe"}), 404
 
-        # insertar puerta
+        # Se inserta INACTIVA por defecto. Antes se insertaba con
+        # activa=1 directo, lo que rompía la invariante de que solo
+        # puede existir UNA puerta activa en todo el sistema (la
+        # misma que garantiza toggle_puerta desactivando todas las
+        # demás antes de activar una, y que exige /sensor/puerta_activa
+        # al devolver error si encuentra más de una). El usuario debe
+        # activarla explícitamente con el botón ACTIVAR en /puertas.
         cur.execute("""
             INSERT INTO puertas (nombre, sucursal_id, activa)
-            VALUES (%s, %s, 1)
+            VALUES (%s, %s, 0)
         """, (nombre, s["id"]))
 
     return jsonify({"ok": True})
@@ -311,22 +317,36 @@ def obtener_historial():
 # =====================================================
 TIPOS = {"ENTRADA", "SALIDA"}
 
-@app.route("/movimiento", methods=["POST"])
-def movimiento():
-    if request.headers.get("X-Sensor-Key") != SENSOR_KEY:
-        return jsonify({"error": "No autorizado"}), 401
+class MovimientoError(Exception):
+    """Error de negocio al registrar un movimiento (puerta/sucursal
+    inexistente, tipo inválido, etc). Se traduce a un status HTTP
+    en cada endpoint que la use."""
+    def __init__(self, mensaje, status=400):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+        self.status = status
 
-    data = request.json
 
-    if not data:
-        return jsonify({"error": "JSON inválido"}), 400
+def registrar_movimiento(puerta, sucursal, tipo):
+    """Lógica compartida para registrar una ENTRADA/SALIDA.
 
-    puerta = data.get("puerta", "").lower().strip()
-    sucursal = data.get("sucursal", "").lower().strip()
-    tipo = data.get("tipo", "").upper().strip()
+    La usan dos endpoints distintos:
+      - /movimiento       -> lo llama sensor.py (autenticado con X-Sensor-Key)
+      - /simular_evento   -> lo llama el dashboard (autenticado con sesión)
+
+    Antes esta lógica vivía solo adentro de /movimiento, que exige
+    X-Sensor-Key. El botón "simular evento" del panel (panel.js)
+    pegaba directamente a /movimiento sin ese header (con toda razón,
+    la SENSOR_KEY no debe viajar al frontend), así que siempre
+    devolvía 401. Separar la lógica de negocio del control de acceso
+    permite exponerla en un segundo endpoint con su propio auth.
+    """
+    puerta = (puerta or "").lower().strip()
+    sucursal = (sucursal or "").lower().strip()
+    tipo = (tipo or "").upper().strip()
 
     if tipo not in TIPOS:
-        return jsonify({"error": "tipo inválido"}), 400
+        raise MovimientoError("tipo inválido", 400)
 
     with db() as cur:
 
@@ -340,7 +360,7 @@ def movimiento():
         row = cur.fetchone()
 
         if not row:
-            return jsonify({"error": "No existe"}), 404
+            raise MovimientoError("No existe", 404)
 
         puerta_id = row["puerta_id"]
         sucursal_id = row["sucursal_id"]
@@ -379,6 +399,44 @@ def movimiento():
         "sucursal": sucursal,
         "tipo": tipo
     })
+
+
+@app.route("/movimiento", methods=["POST"])
+def movimiento():
+    """Endpoint que usa el sensor físico (sensor.py). Se autentica con
+    la SENSOR_KEY, no con sesión de usuario."""
+    if request.headers.get("X-Sensor-Key") != SENSOR_KEY:
+        return jsonify({"error": "No autorizado"}), 401
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    try:
+        registrar_movimiento(data.get("puerta"), data.get("sucursal"), data.get("tipo"))
+    except MovimientoError as e:
+        return jsonify({"error": e.mensaje}), e.status
+
+    return jsonify({"ok": True})
+
+
+@app.route("/simular_evento", methods=["POST"])
+def simular_evento():
+    """Endpoint para simular un evento manualmente desde el dashboard
+    (botones ENTRADA/SALIDA en panel.html). Se autentica con la sesión
+    de usuario logueado, NUNCA con la SENSOR_KEY (esa no debe viajar
+    al frontend)."""
+    if not auth():
+        return jsonify({"error": "No autorizado"}), 401
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    try:
+        registrar_movimiento(data.get("puerta"), data.get("sucursal"), data.get("tipo"))
+    except MovimientoError as e:
+        return jsonify({"error": e.mensaje}), e.status
 
     return jsonify({"ok": True})
 
